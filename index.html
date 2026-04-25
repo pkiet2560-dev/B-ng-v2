@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ball Combat 1vs1 - Ancient Weapons</title>
+    <style>
+        body { margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; background: #1a1a1a; font-family: 'Segoe UI', sans-serif; color: white; overflow: hidden; }
+        canvas { background: #000; border: 4px solid #d4af37; box-shadow: 0 0 50px rgba(212, 175, 55, 0.3); }
+        #overlay { position: absolute; background: rgba(0,0,0,0.9); padding: 30px; border-radius: 15px; text-align: center; z-index: 10; border: 2px solid #d4af37; width: 450px; }
+        .setup-container { display: flex; gap: 20px; margin-bottom: 20px; }
+        .player-box { flex: 1; padding: 15px; border-radius: 10px; background: #222; border: 1px solid #444; }
+        select { padding: 8px; margin-top: 10px; background: #333; color: #fff; border: 1px solid #d4af37; width: 100%; cursor: pointer; }
+        button { padding: 15px 40px; font-size: 20px; cursor: pointer; background: #d4af37; color: #000; border: none; border-radius: 5px; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #fff; transform: scale(1.05); }
+        #ui { position: absolute; top: 20px; width: 500px; display: flex; justify-content: space-between; pointer-events: none; display: none; }
+        .hp-bar { width: 150px; height: 15px; background: #444; border: 1px solid #fff; position: relative; }
+        .hp-fill { height: 100%; transition: width 0.2s; }
+    </style>
+</head>
+<body>
+
+    <div id="overlay">
+        <h2 style="color: #d4af37;">ĐẤU TRƯỜNG CỔ ĐẠI</h2>
+        <div class="setup-container">
+            <div class="player-box">
+                <h3 style="color: #00ffcc;">Bóng 1</h3>
+                <select id="w1">
+                    <option value="DAO">Đao (Sát thương cao)</option>
+                    <option value="THUONG">Thương (Tầm xa)</option>
+                    <option value="GAY">Gậy (Tốc độ xoay nhanh)</option>
+                    <option value="CUNG">Cung (Bắn tiễn)</option>
+                </select>
+            </div>
+            <div class="player-box">
+                <h3 style="color: #ff4444;">Bóng 2</h3>
+                <select id="w2">
+                    <option value="DAO" selected>Đao (Sát thương cao)</option>
+                    <option value="THUONG">Thương (Tầm xa)</option>
+                    <option value="GAY">Gậy (Tốc độ xoay nhanh)</option>
+                    <option value="CUNG">Cung (Bắn tiễn)</option>
+                </select>
+            </div>
+        </div>
+        <button onclick="startGame()">KHỞI CHIẾN</button>
+    </div>
+
+    <div id="ui">
+        <div class="hp-bar"><div id="hp1" class="hp-fill" style="background: #00ffcc; width: 100%;"></div></div>
+        <div class="hp-bar"><div id="hp2" class="hp-fill" style="background: #ff4444; width: 100%;"></div></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = 600; 
+canvas.height = 450;
+
+let gameActive = false;
+let balls = [];
+let arrows = [];
+
+class Ball {
+    constructor(x, y, color, weaponType, id) {
+        this.x = x; this.y = y; this.radius = 25;
+        this.color = color; this.weaponType = weaponType; this.id = id;
+        this.vx = (id === 1 ? 5 : -5); this.vy = (Math.random() - 0.5) * 8;
+        this.hp = 100;
+        this.angle = 0; // Góc xoay của vũ khí
+        
+        // Chỉ số vũ khí
+        this.weaponLength = (weaponType === 'THUONG') ? 60 : 45;
+        this.rotationSpeed = (weaponType === 'GAY') ? 0.25 : 0.15;
+        this.damageBase = (weaponType === 'DAO') ? 2 : 1;
+    }
+
+    draw() {
+        // Vẽ bóng
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        ctx.strokeStyle = "white";
+        ctx.stroke();
+
+        // Vẽ vũ khí xoay quanh
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        
+        ctx.lineWidth = 6;
+        ctx.lineCap = "round";
+        
+        if (this.weaponType === 'DAO') {
+            ctx.strokeStyle = "#silver";
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(this.weaponLength, 0); ctx.stroke();
+            ctx.fillStyle = "#ff0000"; ctx.fillRect(this.weaponLength - 5, -3, 10, 6); // Lưỡi đao
+        } else if (this.weaponType === 'THUONG') {
+            ctx.strokeStyle = "#8B4513";
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(this.weaponLength, 0); ctx.stroke();
+            ctx.fillStyle = "#ff4444"; // Mũi thương
+            ctx.beginPath(); ctx.moveTo(this.weaponLength, -5); ctx.lineTo(this.weaponLength+15, 0); ctx.lineTo(this.weaponLength, 5); ctx.fill();
+        } else if (this.weaponType === 'GAY') {
+            ctx.strokeStyle = "#d4af37";
+            ctx.beginPath(); ctx.moveTo(-this.weaponLength/2, 0); ctx.lineTo(this.weaponLength, 0); ctx.stroke();
+        } else if (this.weaponType === 'CUNG') {
+            ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(20, 0, 30, -Math.PI/2, Math.PI/2); ctx.stroke();
+        }
+        
+        ctx.restore();
+    }
+
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        this.angle += this.rotationSpeed;
+
+        if (this.x + this.radius > canvas.width || this.x - this.radius < 0) {
+            this.vx *= -1;
+            if(this.weaponType === 'CUNG') this.shoot();
+        }
+        if (this.y + this.radius > canvas.height || this.y - this.radius < 0) {
+            this.vy *= -1;
+            if(this.weaponType === 'CUNG') this.shoot();
+        }
+    }
+
+    shoot() {
+        arrows.push({
+            x: this.x, y: this.y, 
+            vx: Math.cos(this.angle) * 12, 
+            vy: Math.sin(this.angle) * 12, 
+            owner: this.id
+        });
+    }
+
+    getWeaponTip() {
+        return {
+            x: this.x + Math.cos(this.angle) * this.weaponLength,
+            y: this.y + Math.sin(this.angle) * this.weaponLength
+        };
+    }
+}
+
+function resolvePhysics() {
+    let b1 = balls[0]; let b2 = balls[1];
+    
+    // 1. Va chạm giữa hai bóng (Bật ra và gây damage)
+    let dist = Math.hypot(b1.x - b2.x, b1.y - b2.y);
+    if (dist < b1.radius + b2.radius) {
+        // Thuật toán bật ngược đơn giản
+        let angle = Math.atan2(b2.y - b1.y, b2.x - b1.x);
+        b1.vx = -Math.cos(angle) * 7; b1.vy = -Math.sin(angle) * 7;
+        b2.vx = Math.cos(angle) * 7; b2.vy = Math.sin(angle) * 7;
+        
+        b1.hp -= 5; b2.hp -= 5; // Sát thương khi va chạm trực tiếp
+    }
+
+    // 2. Va chạm vũ khí xoay vào người đối thủ
+    balls.forEach(attacker => {
+        let defender = balls.find(b => b.id !== attacker.id);
+        let tip = attacker.getWeaponTip();
+        let distToTip = Math.hypot(tip.x - defender.x, tip.y - defender.y);
+        
+        if (distToTip < defender.radius) {
+            defender.hp -= attacker.damageBase;
+            // Hiệu ứng đẩy lùi nhẹ khi trúng vũ khí
+            defender.vx += (defender.x - attacker.x) * 0.05;
+            defender.vy += (defender.y - attacker.y) * 0.05;
+        }
+    });
+}
+
+function startGame() {
+    document.getElementById('overlay').style.display = 'none';
+    document.getElementById('ui').style.display = 'flex';
+    gameActive = true;
+    balls = [
+        new Ball(150, 225, "#00ffcc", document.getElementById('w1').value, 1),
+        new Ball(450, 225, "#ff4444", document.getElementById('w2').value, 2)
+    ];
+    animate();
+}
+
+function animate() {
+    if (!gameActive) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Vẽ biên giới hộp
+    ctx.strokeStyle = "#d4af37"; ctx.lineWidth = 2;
+    ctx.strokeRect(0,0, canvas.width, canvas.height);
+
+    // Xử lý mũi tên (Cung)
+    arrows.forEach((a, i) => {
+        a.x += a.vx; a.y += a.vy;
+        ctx.fillStyle = "white"; ctx.fillRect(a.x, a.y, 8, 2);
+        balls.forEach(b => {
+            if(b.id !== a.owner && Math.hypot(a.x - b.x, a.y - b.y) < b.radius) {
+                b.hp -= 10; arrows.splice(i, 1);
+            }
+        });
+        if(a.x < 0 || a.x > canvas.width || a.y < 0 || a.y > canvas.height) arrows.splice(i, 1);
+    });
+
+    resolvePhysics();
+
+    balls.forEach(b => {
+        b.update();
+        b.draw();
+        document.getElementById('hp'+b.id).style.width = Math.max(0, b.hp) + "%";
+        
+        if(b.hp <= 0) {
+            gameActive = false;
+            alert("Trận đấu kết thúc! Bóng " + (b.id === 1 ? "2" : "1") + " thắng!");
+            location.reload();
+        }
+    });
+
+    requestAnimationFrame(animate);
+}
+</script>
+</body>
+</html>
